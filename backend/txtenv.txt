@@ -1,0 +1,35 @@
+# Server Configuration
+PORT=3001
+NODE_ENV=development
+
+# MongoDB Configuration
+MONGODB_URI=mongodb://localhost:27017/augument
+
+# JWT Configuration
+JWT_SECRET=your_super_secret_jwt_key_here_change_this_in_production
+JWT_EXPIRE=7d
+
+# Email Configuration
+EMAIL_SERVICE=gmail
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=465
+EMAIL_USER=youusemail
+EMAIL_PASS=your password
+
+# Frontend URL (for CORS and email links)
+FRONTEND_URL=http://localhost:3000
+
+# Redis Configuration (Optional)
+ENABLE_REDIS=false
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# Performance Settings
+ENABLE_COMPRESSION=true
+CACHE_TTL=600
+MAX_REQUEST_SIZE=10mb
+
+# Google Gemini AI Configuration
+GEMINI_API_KEY=APIkey
+GEMINI_MODEL=gemini-1.5-flash

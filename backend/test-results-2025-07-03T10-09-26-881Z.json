@@ -1,0 +1,96 @@
+{
+  "enhancedSystemTest": {
+    "success": true,
+    "stdout": "🧪 Testing Enhanced Scalable Authentication System...\n\n1. Testing Health Check with Performance Metrics...\n✅ Health Check Response:\n   - Status: warning\n   - Total Requests: 4\n   - Success Rate: 75.00%\n   - Average Response Time: 4.33ms\n   - CPU Usage: 20.38%\n   - Memory Usage: 80.97%\n   - Cache Hit Rate: 0.00%\n\n2. Testing User Registration with Gender...\nℹ️  User already exists, continuing...\n\n3. Testing Login and Caching...\n✅ Login successful\n   - Token received: Yes\n   - User Gender: undefined\n\n4. Testing Cached User Profile (3 requests)...\n   Request 1: 11ms - Gender: male\n   Request 2: 7ms - Gender: male\n   Request 3: 5ms - Gender: male\n   (Notice: Subsequent requests should be faster due to caching)\n\n5. Testing Performance Metrics Endpoint...\n✅ Performance Metrics:\n   - Total Requests: 10\n   - Success Rate: 80.00%\n   - Average Response Time: 55.78ms\n   - Requests/Second: 0.20\n   - CPU Usage: 20.38%\n   - Memory Usage: 80.97%\n   - Node Version: v20.10.0\n\n6. Testing Cache Status...\n✅ Cache Status:\n   - Status: healthy\n   - Memory Cache: Working\n   - Redis Cache: Not Connected\n   - Cache Hits: 6\n   - Cache Misses: 1\n   - Hit Rate: 85.71%\n\n7. Testing Rate Limiting...\n   Making 3 rapid requests to test rate limiting...\n   Request 1: Success (200)\n   - Rate Limit Remaining: 988\n   Request 2: Success (200)\n   - Rate Limit Remaining: 987\n   Request 3: Success (200)\n   - Rate Limit Remaining: 986\n\n8. Testing Face Analysis API...\n✅ Face Analysis API is accessible\n   - Upload field name: faceImage\n   - Max file size: 10MB\n\n🎉 Enhanced System Test Summary:\n✅ Gender field in user registration: Working\n✅ JWT authentication: Working\n✅ Caching system: Working\n✅ Performance monitoring: Working\n✅ Rate limiting: Working\n✅ Face analysis API: Working\n✅ Health checks: Working\n\n🚀 Your API is ready for production with:\n   - Scalable authentication with gender support\n   - Advanced caching for performance\n   - Comprehensive rate limiting\n   - Real-time performance monitoring\n   - Face analysis capabilities\n",
+    "stderr": "",
+    "duration": 780,
+    "code": 0
+  },
+  "loadTest": {
+    "success": true,
+    "stdout": "🚀 Starting Load Tests...\n\n🧪 Testing Registration: 10 concurrent users, 5 requests each\n\n📊 Registration Load Test Results:\n==================================================\nTotal Requests: 50\nSuccessful: 0 (0.00%)\nFailed: 50 (100.00%)\nRequests/Second: 260.42\nAverage Response Time: 28.66ms\nMin Response Time: 4ms\nMax Response Time: 110ms\nTotal Duration: 0.19s\n\nStatus Codes:\n  400: 4\n  429: 46\n\nErrors:\n  Request failed with status code 429: 46\n  Request failed with status code 400: 4\n==================================================\n🧪 Testing Login: 10 concurrent users, 5 requests each\nCreating test users...\nCreated 0 test users\n\n📊 Login Load Test Results:\n==================================================\nTotal Requests: 0\nSuccessful: 0 (NaN%)\nFailed: 0 (NaN%)\nRequests/Second: NaN\nAverage Response Time: 0.00ms\nMin Response Time: Infinityms\nMax Response Time: 0ms\nTotal Duration: 0.00s\n\nStatus Codes:\n==================================================\n🧪 Testing Authenticated Endpoints: 5 concurrent users, 10 requests each\nGot 0 authentication tokens\n\n📊 Authenticated Endpoints Test Results:\n==================================================\nTotal Requests: 0\nSuccessful: 0 (NaN%)\nFailed: 0 (NaN%)\nRequests/Second: NaN\nAverage Response Time: 0.00ms\nMin Response Time: Infinityms\nMax Response Time: 0ms\nTotal Duration: 0.00s\n\nStatus Codes:\n==================================================\n🔥 Extreme Load Test: 20 concurrent users, 10 requests each\nTotal requests: 200\n\n📊 Extreme Load Test Results:\n==================================================\nTotal Requests: 20\nSuccessful: 0 (0.00%)\nFailed: 20 (100.00%)\nRequests/Second: 425.53\nAverage Response Time: 30.05ms\nMin Response Time: 22ms\nMax Response Time: 37ms\nTotal Duration: 0.05s\n\nStatus Codes:\n  429: 20\n\nErrors:\n  Request failed with status code 429: 20\n==================================================\n",
+    "stderr": "",
+    "duration": 6542,
+    "code": 0
+  },
+  "performanceMetrics": {
+    "success": true,
+    "data": {
+      "timestamp": "2025-07-03T10:09:26.869Z",
+      "status": "critical",
+      "summary": {
+        "totalRequests": 106,
+        "successRate": "13.21%",
+        "averageResponseTime": "7.54ms",
+        "requestsPerSecond": "1.88",
+        "cpuUsage": "20.38%",
+        "memoryUsage": "80.97%",
+        "cacheHitRate": "0.00%"
+      },
+      "alerts": {
+        "critical": [
+          "Error rate is critically high (85.85%)"
+        ],
+        "warning": [
+          "Memory usage is high (>80%)",
+          "Cache hit rate is low (0.00%)"
+        ],
+        "info": []
+      },
+      "detailed": {
+        "requests": {
+          "total": 106,
+          "successful": 14,
+          "failed": 91,
+          "successRate": "13.21",
+          "averageResponseTime": 7.542857142857143,
+          "requestsPerSecond": 1.8826036764052927,
+          "responseTimePercentiles": {
+            "p50": 1,
+            "p90": 4,
+            "p95": 29,
+            "p99": 49
+          }
+        },
+        "system": {
+          "cpuUsage": 20.382296019081693,
+          "memoryUsage": 80.97273549106121,
+          "loadAverage": 0,
+          "uptime": 30.970166,
+          "totalMemory": "15.84 GB",
+          "freeMemory": "2.89 GB",
+          "cpuCount": 8,
+          "platform": "win32",
+          "nodeVersion": "v20.10.0"
+        },
+        "cache": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": 0
+        }
+      }
+    }
+  },
+  "startTime": 1751537359456,
+  "endTime": 1751537366883,
+  "cacheStatus": {
+    "success": true,
+    "data": {
+      "status": "healthy",
+      "memoryCache": true,
+      "redisCache": false,
+      "stats": {
+        "hits": 10,
+        "misses": 1,
+        "sets": 6,
+        "deletes": 5,
+        "memoryKeys": 9,
+        "memoryHits": 201,
+        "memoryMisses": 9,
+        "redisConnected": false,
+        "hitRate": 0.9090909090909091
+      }
+    }
+  },
+  "totalDuration": 7427
+}

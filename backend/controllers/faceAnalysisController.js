@@ -1,0 +1,510 @@
+const FaceAnalysis = require('../models/FaceAnalysis');
+const ColorRecommendation = require('../models/ColorRecommendation');
+const faceAnalysisService = require('../utils/faceAnalysisService');
+const colorRecommendationService = require('../utils/colorRecommendationService');
+const { cleanupFile, getFileUrl } = require('../middleware/upload');
+const path = require('path');
+
+// @desc    Upload and analyze face image
+// @route   POST /api/face/analyze
+// @access  Private
+const analyzeFace = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file uploaded'
+      });
+    }
+
+    const userId = req.user.id;
+    const filePath = req.file.path;
+    const originalFileName = req.file.originalname;
+
+    console.log(`🔍 Starting face analysis for user ${userId}`);
+    console.log(`📁 File: ${originalFileName} (${req.file.size} bytes)`);
+
+    // Perform face analysis
+    const analysisResult = await faceAnalysisService.analyzeFace(filePath, originalFileName);
+
+    // Create file URL for serving the image
+    const imageUrl = getFileUrl(req.file.filename);
+
+    // Save analysis to database
+    const faceAnalysis = new FaceAnalysis({
+      userId,
+      imageUrl,
+      originalFileName: analysisResult.originalFileName,
+      fileSize: analysisResult.fileSize,
+      imageFormat: analysisResult.imageFormat,
+      imageDimensions: analysisResult.imageDimensions,
+      faceDetected: analysisResult.faceDetected,
+      faceCount: analysisResult.faceCount,
+      faceRegion: analysisResult.faceRegion,
+      colors: analysisResult.colors,
+      faceDimensions: analysisResult.faceDimensions,
+      facialFeatures: analysisResult.facialFeatures,
+      analysisMetadata: analysisResult.analysisMetadata
+    });
+
+    await faceAnalysis.save();
+
+    console.log(`✅ Face analysis completed in ${analysisResult.analysisMetadata.processingTime}ms`);
+
+    // Return comprehensive analysis results
+    res.status(200).json({
+      success: true,
+      message: 'Face analysis completed successfully',
+      data: {
+        analysisId: faceAnalysis._id,
+        imageUrl,
+        faceDetected: analysisResult.faceDetected,
+        processingTime: analysisResult.analysisMetadata.processingTime,
+        confidence: analysisResult.analysisMetadata.confidence,
+        
+        // Color Analysis
+        colors: {
+          hairColor: analysisResult.colors.hairColor,
+          skinTone: analysisResult.colors.skinTone,
+          eyeColor: analysisResult.colors.eyeColor,
+          lipColor: analysisResult.colors.lipColor
+        },
+        
+        // Face Measurements
+        dimensions: analysisResult.faceDimensions,
+        
+        // Facial Features
+        features: analysisResult.facialFeatures,
+        
+        // Image Info
+        imageInfo: {
+          originalFileName: analysisResult.originalFileName,
+          format: analysisResult.imageFormat,
+          dimensions: analysisResult.imageDimensions,
+          fileSize: analysisResult.fileSize
+        },
+        
+        // Analysis Metadata
+        metadata: {
+          errors: analysisResult.analysisMetadata.errors,
+          warnings: analysisResult.analysisMetadata.warnings,
+          algorithm: analysisResult.analysisMetadata.algorithm
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Face analysis error:', error);
+
+    // Clean up uploaded file on error
+    if (req.file && req.file.path) {
+      cleanupFile(req.file.path);
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error during face analysis',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// @desc    Get user's face analysis history
+// @route   GET /api/face/history
+// @access  Private
+const getFaceAnalysisHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const analyses = await FaceAnalysis.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select('-featureCoordinates -analysisMetadata.errors'); // Exclude heavy data
+
+    const total = await FaceAnalysis.countDocuments({ userId });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        analyses,
+        pagination: {
+          current: page,
+          pages: Math.ceil(total / limit),
+          total,
+          hasNext: page < Math.ceil(total / limit),
+          hasPrev: page > 1
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving face analysis history'
+    });
+  }
+};
+
+// @desc    Get specific face analysis
+// @route   GET /api/face/analysis/:id
+// @access  Private
+const getFaceAnalysis = async (req, res) => {
+  try {
+    const analysisId = req.params.id;
+    const userId = req.user.id;
+
+    const analysis = await FaceAnalysis.findOne({
+      _id: analysisId,
+      userId
+    });
+
+    if (!analysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'Face analysis not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: analysis
+    });
+
+  } catch (error) {
+    console.error('Get analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving face analysis'
+    });
+  }
+};
+
+// @desc    Delete face analysis
+// @route   DELETE /api/face/analysis/:id
+// @access  Private
+const deleteFaceAnalysis = async (req, res) => {
+  try {
+    const analysisId = req.params.id;
+    const userId = req.user.id;
+
+    const analysis = await FaceAnalysis.findOne({
+      _id: analysisId,
+      userId
+    });
+
+    if (!analysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'Face analysis not found'
+      });
+    }
+
+    // Delete the image file
+    const filename = path.basename(analysis.imageUrl);
+    const filePath = path.join(__dirname, '../uploads/face-images', filename);
+    cleanupFile(filePath);
+
+    // Delete from database
+    await FaceAnalysis.findByIdAndDelete(analysisId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Face analysis deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting face analysis'
+    });
+  }
+};
+
+// @desc    Get color palette from analysis
+// @route   GET /api/face/analysis/:id/colors
+// @access  Private
+const getColorPalette = async (req, res) => {
+  try {
+    const analysisId = req.params.id;
+    const userId = req.user.id;
+
+    const analysis = await FaceAnalysis.findOne({
+      _id: analysisId,
+      userId
+    });
+
+    if (!analysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'Face analysis not found'
+      });
+    }
+
+    const colorPalette = analysis.getColorPalette();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        palette: colorPalette,
+        recommendations: [
+          'Colors that complement your skin tone',
+          'Hair color suggestions',
+          'Eye makeup recommendations',
+          'Lip color suggestions'
+        ]
+      }
+    });
+
+  } catch (error) {
+    console.error('Get color palette error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving color palette'
+    });
+  }
+};
+
+// @desc    Get face measurements
+// @route   GET /api/face/analysis/:id/measurements
+// @access  Private
+const getFaceMeasurements = async (req, res) => {
+  try {
+    const analysisId = req.params.id;
+    const userId = req.user.id;
+
+    const analysis = await FaceAnalysis.findOne({
+      _id: analysisId,
+      userId
+    });
+
+    if (!analysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'Face analysis not found'
+      });
+    }
+
+    const measurements = analysis.getMeasurements();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        measurements,
+        analysis: {
+          faceShape: analysis.facialFeatures.faceShape,
+          symmetry: 'Good', // Placeholder
+          proportions: 'Balanced' // Placeholder
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get measurements error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving face measurements'
+    });
+  }
+};
+
+// @desc    Get color recommendations for face analysis
+// @route   POST /api/face/analysis/:id/recommendations
+// @access  Private
+const getColorRecommendations = async (req, res) => {
+  try {
+    const analysisId = req.params.id;
+    const userId = req.user.id;
+    const userProfile = {
+      gender: req.user.gender || 'unspecified',
+      preferences: req.body.preferences || {}
+    };
+
+    console.log(`🎨 Getting color recommendations for analysis ${analysisId}`);
+
+    const result = await colorRecommendationService.generateRecommendations(
+      analysisId,
+      userId,
+      userProfile
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to generate color recommendations'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: result.cached ? 'Retrieved existing recommendations' : 'Generated new recommendations',
+      data: {
+        recommendationId: result.data._id,
+        faceAnalysisId: analysisId,
+        aiService: result.data.aiService,
+        processingTime: result.processingTime,
+        cached: result.cached,
+
+        // Outfit Recommendations
+        outfits: result.data.recommendations,
+
+        // Color Palette
+        colorPalette: result.data.colorPalette,
+
+        // General Advice
+        advice: result.data.generalAdvice,
+
+        // Metadata
+        confidence: result.data.confidence,
+        createdAt: result.data.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Get color recommendations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating color recommendations',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// @desc    Regenerate color recommendations
+// @route   POST /api/face/analysis/:id/recommendations/regenerate
+// @access  Private
+const regenerateColorRecommendations = async (req, res) => {
+  try {
+    const analysisId = req.params.id;
+    const userId = req.user.id;
+    const userProfile = {
+      gender: req.user.gender || 'unspecified',
+      preferences: req.body.preferences || {}
+    };
+
+    console.log(`🔄 Regenerating color recommendations for analysis ${analysisId}`);
+
+    const result = await colorRecommendationService.regenerateRecommendations(
+      analysisId,
+      userId,
+      userProfile
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Color recommendations regenerated successfully',
+      data: {
+        recommendationId: result.data._id,
+        faceAnalysisId: analysisId,
+        aiService: result.data.aiService,
+        processingTime: result.processingTime,
+
+        // Outfit Recommendations
+        outfits: result.data.recommendations,
+
+        // Color Palette
+        colorPalette: result.data.colorPalette,
+
+        // General Advice
+        advice: result.data.generalAdvice,
+
+        // Metadata
+        confidence: result.data.confidence,
+        createdAt: result.data.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Regenerate color recommendations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error regenerating color recommendations',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// @desc    Get user's color recommendation history
+// @route   GET /api/face/recommendations/history
+// @access  Private
+const getColorRecommendationHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const result = await colorRecommendationService.getUserRecommendationHistory(userId, limit);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        recommendations: result.data,
+        count: result.count
+      }
+    });
+
+  } catch (error) {
+    console.error('Get recommendation history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving recommendation history'
+    });
+  }
+};
+
+// @desc    Add user feedback to recommendations
+// @route   POST /api/face/recommendations/:id/feedback
+// @access  Private
+const addRecommendationFeedback = async (req, res) => {
+  try {
+    const recommendationId = req.params.id;
+    const userId = req.user.id;
+    const { rating, feedback, favoriteOutfits } = req.body;
+
+    // Validate input
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    const result = await colorRecommendationService.addUserFeedback(
+      recommendationId,
+      userId,
+      rating,
+      feedback,
+      favoriteOutfits
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Feedback added successfully',
+      data: result.data
+    });
+
+  } catch (error) {
+    console.error('Add feedback error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding feedback'
+    });
+  }
+};
+
+module.exports = {
+  analyzeFace,
+  getFaceAnalysisHistory,
+  getFaceAnalysis,
+  deleteFaceAnalysis,
+  getColorPalette,
+  getFaceMeasurements,
+  getColorRecommendations,
+  regenerateColorRecommendations,
+  getColorRecommendationHistory,
+  addRecommendationFeedback
+};
