@@ -1,66 +1,47 @@
 const transporter = require('../config/email');
 
-// Send email verification
-const sendEmailVerification = async (user, verificationToken) => {
-  // Check if it's a mobile app (no traditional frontend URL)
-  const isMobileApp = !process.env.FRONTEND_URL || process.env.FRONTEND_URL.startsWith('augumentapp://');
-
-  let verificationUrl, instructions;
-
-  if (isMobileApp) {
-    // Mobile app deep link
-    verificationUrl = `${process.env.APP_SCHEME || 'augumentapp'}://verify-email?token=${verificationToken}`;
-    instructions = `
-      <p><strong>Mobile App Instructions:</strong></p>
-      <ol>
-        <li>Copy the verification code below: <strong style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px;">${verificationToken}</strong></li>
-        <li>Open the Augument App on your device</li>
-        <li>Go to "Verify Email" and enter this verification code</li>
-        <li>Your account will be activated</li>
-      </ol>
-      <p>Or tap this link if you're viewing this email on your mobile device:</p>
-      <div style="text-align: center; margin: 20px 0;">
-        <a href="${verificationUrl}"
-           style="background-color: #007bff; color: white; padding: 12px 30px;
-                  text-decoration: none; border-radius: 5px; display: inline-block;">
-          Open in App
-        </a>
-      </div>
-    `;
-  } else {
-    // Web app traditional link
-    verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-    instructions = `
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationUrl}"
-           style="background-color: #007bff; color: white; padding: 12px 30px;
-                  text-decoration: none; border-radius: 5px; display: inline-block;">
-          Verify Email Address
-        </a>
-      </div>
-      <p>Or copy and paste this link in your browser:</p>
-      <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
-    `;
-  }
-
+// Send email verification with OTP
+const sendEmailVerification = async (user, verificationOTP) => {
   const mailOptions = {
     from: `"Augument App" <${process.env.EMAIL_USER}>`,
     to: user.email,
-    subject: 'Email Verification - Augument App',
+    subject: 'Email Verification OTP - Augument App',
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Welcome to Augument App!</h2>
-        <p>Hi ${user.name},</p>
-        <p>Thank you for signing up! Please verify your email address:</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h2 style="color: #333; margin-bottom: 10px;">Welcome to Augument App!</h2>
+          <p style="color: #666; font-size: 16px;">Verify your email address to get started</p>
+        </div>
 
-        ${instructions}
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center; margin: 30px 0;">
+          <p style="margin-bottom: 15px; font-size: 18px; color: #333;">Hi ${user.name},</p>
+          <p style="margin-bottom: 25px; color: #666;">Enter this verification code in the app:</p>
 
-        <p><strong>Verification Code:</strong> <span style="background: #f8f9fa; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 16px; letter-spacing: 1px;">${verificationToken}</span></p>
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px dashed #007bff; margin: 20px 0;">
+            <span style="font-family: 'Courier New', monospace; font-size: 32px; font-weight: bold; color: #007bff; letter-spacing: 8px;">
+              ${verificationOTP}
+            </span>
+          </div>
 
-        <p>This verification code will expire in 24 hours.</p>
+          <p style="color: #666; font-size: 14px; margin-top: 20px;">
+            This code will expire in <strong>15 minutes</strong>
+          </p>
+        </div>
+
+        <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 30px 0;">
+          <h3 style="color: #1976d2; margin-top: 0;">How to verify:</h3>
+          <ol style="color: #333; line-height: 1.6;">
+            <li>Open the Augument App</li>
+            <li>Go to the email verification screen</li>
+            <li>Enter the 6-digit code above</li>
+            <li>Tap "Verify" to activate your account</li>
+          </ol>
+        </div>
+
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">
-          If you didn't create an account, please ignore this email.
+        <p style="color: #666; font-size: 12px; text-align: center;">
+          If you didn't create an account, please ignore this email.<br>
+          This verification code is valid for 15 minutes only.
         </p>
       </div>
     `
@@ -68,11 +49,11 @@ const sendEmailVerification = async (user, verificationToken) => {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Verification email sent to ${user.email} (${isMobileApp ? 'Mobile App' : 'Web App'} format)`);
+    console.log(`✅ Verification OTP sent to ${user.email}`);
     return true;
   } catch (error) {
-    console.error('❌ Error sending verification email:', error);
-    throw new Error('Failed to send verification email');
+    console.error('❌ Error sending verification OTP:', error);
+    throw new Error('Failed to send verification OTP');
   }
 };
 

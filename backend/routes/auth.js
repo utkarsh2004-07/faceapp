@@ -6,6 +6,7 @@ const {
   getMe,
   logout,
   verifyEmail,
+  verifyEmailOTP,
   verifyEmailMobile,
   resendVerification,
   forgotPassword,
@@ -111,6 +112,15 @@ router.post('/reset-password-mobile',
     body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
   ],
   resetPasswordMobile
+);
+
+router.post('/verify-email-otp',
+  advancedRateLimit.createLimiter('auth'),
+  [
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')
+  ],
+  verifyEmailOTP
 );
 
 router.post('/verify-email-mobile',

@@ -73,13 +73,13 @@ const register = async (req, res) => {
       gender
     });
 
-    // Generate email verification token
-    const verificationToken = user.generateEmailVerificationToken();
+    // Generate email verification OTP
+    const verificationOTP = user.generateEmailVerificationOTP();
     await user.save({ validateBeforeSave: false });
 
-    // Send verification email
+    // Send verification email with OTP
     try {
-      await sendEmailVerification(user, verificationToken);
+      await sendEmailVerification(user, verificationOTP);
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
       // Continue with registration even if email fails
@@ -87,7 +87,7 @@ const register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully. Please check your email for verification.',
+      message: 'User registered successfully. Please check your email for the verification OTP.',
       user: {
         id: user._id,
         name: user.name,
@@ -316,23 +316,23 @@ const resendVerification = async (req, res) => {
       });
     }
 
-    // Generate new verification token
-    const verificationToken = user.generateEmailVerificationToken();
+    // Generate new verification OTP
+    const verificationOTP = user.generateEmailVerificationOTP();
     await user.save({ validateBeforeSave: false });
 
-    // Send verification email
+    // Send verification email with OTP
     try {
-      await sendEmailVerification(user, verificationToken);
+      await sendEmailVerification(user, verificationOTP);
 
       res.status(200).json({
         success: true,
-        message: 'Verification email sent successfully'
+        message: 'Verification OTP sent successfully'
       });
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
       res.status(500).json({
         success: false,
-        message: 'Failed to send verification email'
+        message: 'Failed to send verification OTP'
       });
     }
 
@@ -563,7 +563,72 @@ const resetPasswordMobile = async (req, res) => {
   }
 };
 
-// @desc    Verify email with token (mobile-friendly)
+// @desc    Verify email with OTP
+// @route   POST /api/auth/verify-email-otp
+// @access  Public
+const verifyEmailOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required'
+      });
+    }
+
+    // Find user with matching email and valid OTP
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      emailVerificationOTP: otp,
+      emailVerificationOTPExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP'
+      });
+    }
+
+    // Verify email
+    user.isEmailVerified = true;
+    user.emailVerificationOTP = undefined;
+    user.emailVerificationOTPExpires = undefined;
+    user.emailVerifiedAt = Date.now();
+
+    await user.save();
+
+    // Send welcome email
+    try {
+      await sendWelcomeEmail(user);
+    } catch (emailError) {
+      console.error('Welcome email failed:', emailError);
+      // Continue even if welcome email fails
+    }
+
+    console.log(`✅ Email verified with OTP for user: ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully',
+      data: {
+        email: user.email,
+        isEmailVerified: true,
+        message: 'Your account is now active'
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify email OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying email'
+    });
+  }
+};
+
+// @desc    Verify email with token (mobile-friendly) - Legacy support
 // @route   POST /api/auth/verify-email-mobile
 // @access  Public
 const verifyEmailMobile = async (req, res) => {
@@ -633,6 +698,7 @@ module.exports = {
   getMe,
   logout,
   verifyEmail,
+  verifyEmailOTP,
   verifyEmailMobile,
   resendVerification,
   forgotPassword,

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -43,6 +44,14 @@ const userSchema = new mongoose.Schema({
     select: false
   },
   emailVerificationExpires: {
+    type: Date,
+    select: false
+  },
+  emailVerificationOTP: {
+    type: String,
+    select: false
+  },
+  emailVerificationOTPExpires: {
     type: Date,
     select: false
   },
@@ -99,18 +108,29 @@ userSchema.methods.generateAuthToken = function() {
   );
 };
 
-// Generate email verification token
+// Generate email verification token (legacy - keeping for backward compatibility)
 userSchema.methods.generateEmailVerificationToken = function() {
   const token = jwt.sign(
     { id: this._id },
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
-  
+
   this.emailVerificationToken = token;
   this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  
+
   return token;
+};
+
+// Generate email verification OTP (6-digit numeric code)
+userSchema.methods.generateEmailVerificationOTP = function() {
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  this.emailVerificationOTP = otp;
+  this.emailVerificationOTPExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  return otp;
 };
 
 // Generate password reset token (crypto-based for mobile compatibility)
