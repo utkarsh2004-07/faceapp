@@ -128,18 +128,28 @@ class GeminiService {
     const foreheadWidth = faceDimensions.foreheadWidth ? `${faceDimensions.foreheadWidth}px` : 'not measured';
     const cheekboneWidth = faceDimensions.cheekboneWidth ? `${faceDimensions.cheekboneWidth}px` : 'not measured';
 
+
+
+
+
+
+
     const prompt = `
-You are a professional fashion color consultant and stylist. Based on the following detailed face analysis data, provide clothing color recommendations that will complement the person's natural features.
+You are an expert fashion color analyst and stylist trained in seasonal color theory, color harmony, facial proportion matching, and clothing aesthetics.
 
-DETAILED FACE ANALYSIS DATA:
+Your task is to generate 3 complete and visually appealing outfit combinations tailored specifically to a user based on their detailed facial analysis and color features.
 
-COLOR ANALYSIS:
-- Skin Tone: ${skinTone} (Hex Color: ${skinToneHex})
-- Hair Color: ${hairColor} (Hex Color: ${hairColorHex})
-- Eye Color: ${eyeColor} (Hex Color: ${eyeColorHex})
-- Lip Color: ${lipColor} (Hex Color: ${lipColorHex})
+---
 
-FACIAL STRUCTURE & FEATURES:
+FACE ANALYSIS DATA:
+
+COLOR PROFILE:
+- Skin Tone: ${skinTone} (Hex: ${skinToneHex})
+- Hair Color: ${hairColor} (Hex: ${hairColorHex})
+- Eye Color: ${eyeColor} (Hex: ${eyeColorHex})
+- Lip Color: ${lipColor} (Hex: ${lipColorHex})
+
+FACIAL FEATURES:
 - Face Shape: ${faceShape}
 - Eye Shape: ${eyeShape}
 - Eye Distance: ${eyeDistance}
@@ -147,87 +157,99 @@ FACIAL STRUCTURE & FEATURES:
 - Nose Shape: ${noseShape}
 - Lip Shape: ${lipShape}
 
-FACE DIMENSIONS & PROPORTIONS:
-- Face Length: ${faceLength}
-- Face Width: ${faceWidth}
-- Length to Width Ratio: ${lengthToWidthRatio}
-- Jaw Width: ${jawWidth}
-- Forehead Width: ${foreheadWidth}
-- Cheekbone Width: ${cheekboneWidth}
+PROPORTIONS & STRUCTURE:
+- Face Length: ${faceLength}, Width: ${faceWidth}, Ratio: ${lengthToWidthRatio}
+- Jaw Width: ${jawWidth}, Forehead Width: ${foreheadWidth}, Cheekbone Width: ${cheekboneWidth}
 
 PERSONAL DETAILS:
 - Gender: ${gender}
-- Analysis Confidence: ${confidencePercent}
+- Confidence in Face Analysis: ${confidencePercent}%
+- Data Quality: ${hasValidData ? "High-quality (detailed)" : "Low-quality (basic)"}
 
-${hasValidData ?
-  'IMPORTANT: Use the above face analysis data to provide personalized color recommendations based on the detected features.' :
-  'NOTE: Limited face analysis data available. Provide general color recommendations suitable for the specified gender.'
-}
+---
 
-ANALYSIS QUALITY: ${hasValidData ? 'High-quality face analysis data available' : 'Basic analysis - provide versatile recommendations'}
+OBJECTIVE:
+- Use the above face data to generate 3 personalized outfit color combinations (shirt, pants, shoes).
+- Consider seasonal color analysis, contrast levels, warm vs cool tones, and color psychology.
+- Adapt choices based on:
+  - ${skinTone} skin tone
+  - ${hairColor} hair color
+  - ${eyeColor} eye color
+  - ${faceShape} face shape
+  - Facial balance and proportions
+
+---
 
 REQUIREMENTS:
-1. Provide 3 complete outfit color combinations (shirt, pants, shoes)
-2. Each recommendation should include specific color names and hex codes
-3. Consider color harmony, contrast, and seasonal appropriateness
-4. Explain WHY each color works with their features
-5. Consider both casual and formal options
-6. MUST reference the specific skin tone "${skinTone}" and hair color "${hairColor}" in your advice
 
-FACIAL FEATURE CONSIDERATIONS FOR COLOR RECOMMENDATIONS:
-- Face Shape (${faceShape}): Use colors that complement and balance facial proportions
-- Eye Color (${eyeColor}): Choose colors that enhance and bring out the natural eye color
-- Eye Shape (${eyeShape}): Consider how colors can complement the eye shape
-- Lip Shape (${lipShape}): Factor in lip shape when suggesting colors that harmonize with natural lip color
-- Face Proportions: Use the face dimensions to suggest colors that create visual balance
-- Overall Harmony: Ensure colors work together with all detected facial features
+1. Provide 3 complete outfit suggestions:
+   - Each must include: shirt, pants, and shoes
+   - Use real color names (e.g. "Olive Green") and valid hex codes
 
-Please respond in the following JSON format:
+2. Include a brief reason for each item explaining:
+   - Why this color was chosen based on the user’s features
+   - How it works with their natural tones and proportions
+
+3. Avoid repeating colors across all outfits. Each outfit should be visually distinct.
+
+4. Include a seasonalType (Spring, Summer, Autumn, Winter, Universal)
+
+5. Return all output in the exact JSON format shown below.
+
+---
+
+SHOE COLOR RESTRICTIONS:
+Avoid these hex values for shoes:
+["#800020", "#722f37", "#8b0000", "#a0522d", "#b22222", "#ff0000", "#dc143c", "#8b008b"]
+
+Preferred shoe colors:
+["#000000", "#ffffff", "#36454f", "#2f2f2f", "#f8f8ff"]
+
+---
+
+OUTPUT FORMAT:
+
 {
   "recommendations": [
     {
-      "outfitName": "Casual Everyday",
+      "outfitName": "Unique outfit name here",
       "shirt": {
-        "color": "Navy Blue",
-        "hex": "#1e3a8a",
-        "reason": "Complements your ${skinTone} skin tone and enhances your ${eyeColor} eyes"
+        "color": "Color Name",
+        "hex": "#xxxxxx",
+        "reason": "Explain why this shirt color complements skin tone (${skinTone}), hair (${hairColor}), and face shape (${faceShape})"
       },
       "pants": {
-        "color": "Khaki",
-        "hex": "#c3b091",
-        "reason": "Neutral tone that works with your undertones and balances your ${faceShape} face shape"
+        "color": "Color Name",
+        "hex": "#xxxxxx",
+        "reason": "Explain how it balances proportions or contrasts with shirt"
       },
       "shoes": {
-        "color": "Black Leather",
-        "hex": "#000000",
-        "reason": "Classic choice that grounds the outfit and works with your facial proportions"
+        "color": "Color Name",
+        "hex": "#xxxxxx",
+        "reason": "Explain its versatility and grounding effect on the outfit"
       },
-      "overallReason": "This combination creates a balanced look for your ${skinTone} skin, ${hairColor} hair, and ${faceShape} face shape"
+      "overallReason": "Summarize how this outfit enhances natural features and fits the user's facial structure"
     }
+    // Repeat for outfit 2 and 3
   ],
   "colorPalette": {
-    "bestColors": ["#1e3a8a", "#c3b091", "#8b4513"],
-    "avoidColors": ["#ff0000", "#ffff00"],
-    "seasonalType": "Spring"
+    "bestColors": [/* 3-6 top hex codes */],
+    "avoidColors": [/* 2-4 specific hex codes */],
+    "seasonalType": "Spring" // or Summer, Autumn, Winter, Universal
   },
-  "generalAdvice": "Based on your ${skinTone} skin tone, ${hairColor} hair color, ${eyeColor} eyes, and ${faceShape} face shape, these color combinations will enhance your natural features and complement your facial structure."
+  "generalAdvice": "Explain the overall strategy based on ${skinTone}, ${hairColor}, ${eyeColor}, and ${faceShape}, and how these outfits were chosen to enhance them."
 }
 
-CRITICAL REQUIREMENTS:
-- Use the EXACT face analysis data provided above
-- Reference the specific skin tone "${skinTone}", hair color "${hairColor}", eye color "${eyeColor}", and face shape "${faceShape}" in your recommendations and advice
-- Consider facial features like eye shape "${eyeShape}", lip shape "${lipShape}", and face proportions in your color choices
-- Provide exactly 3 outfit recommendations
-- Make sure all hex colors are valid 6-digit codes
-- Choose seasonalType from: Spring, Summer, Autumn, Winter, Universal, or Unspecified
-- In the generalAdvice, specifically mention "${skinTone}", "${hairColor}", "${eyeColor}", and "${faceShape}" values
-- Explain how colors complement specific facial features and proportions
+---
 
-IMPORTANT COLOR RESTRICTIONS:
-- AVOID these colors for shoes: #800020, #722f37, #8b0000, #a0522d, #b22222, #ff0000, #dc143c, #8b008b
-- For shoes, prefer: Black (#000000), White (#ffffff), Charcoal Gray (#36454f), Dark Gray (#2f2f2f), Off-White (#f8f8ff)
-- Use classic and versatile shoe colors that work with multiple outfits
-- Avoid burgundy, wine, and bright red colors for footwear`;
+CRITICAL:
+- Don’t copy color combos from previous responses.
+- Never use "Navy + Khaki + Black" in all responses.
+- Think like a human stylist: create visually distinct, well-balanced, seasonal looks.
+
+Use fashion theory and user features. Be creative and precise.
+`;
+
 
     return prompt;
   }
