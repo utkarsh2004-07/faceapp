@@ -2,6 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const {
   analyzeFace,
+  analyzeFaceFromDirectUpload,
   getFaceAnalysisHistory,
   getFaceAnalysis,
   deleteFaceAnalysis,
@@ -22,13 +23,37 @@ const router = express.Router();
 router.use(protect);
 
 // @route   POST /api/face/analyze
-// @desc    Upload and analyze face image
+// @desc    Upload and analyze face image (legacy method)
 // @access  Private
 router.post('/analyze',
   advancedRateLimit.createLimiter('faceAnalysis'),
   uploadWithValidation,
   analyzeFace
 );
+
+// @route   POST /api/face/analyze-direct
+// @desc    Analyze face from direct Cloudinary upload
+// @access  Private
+router.post('/analyze-direct', [
+  body('publicId').notEmpty().withMessage('Public ID is required'),
+  body('imageUrl').isURL().withMessage('Valid image URL is required'),
+  body('originalFileName').notEmpty().withMessage('Original filename is required'),
+  body('imageData').isObject().withMessage('Image data is required'),
+  body('imageData.width').isNumeric().withMessage('Image width is required'),
+  body('imageData.height').isNumeric().withMessage('Image height is required'),
+  body('imageData.bytes').isNumeric().withMessage('Image size is required'),
+  body('imageData.format').notEmpty().withMessage('Image format is required')
+], (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+  next();
+}, advancedRateLimit.createLimiter('faceAnalysis'), analyzeFaceFromDirectUpload);
 
 // @route   GET /api/face/history
 // @desc    Get user's face analysis history

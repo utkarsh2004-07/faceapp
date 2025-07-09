@@ -2,7 +2,7 @@ const FaceAnalysis = require('../models/FaceAnalysis');
 const ColorRecommendation = require('../models/ColorRecommendation');
 const faceAnalysisService = require('../utils/faceAnalysisService');
 const colorRecommendationService = require('../utils/colorRecommendationService');
-const { cleanupFile, getFileUrl } = require('../middleware/upload');
+const { cleanupFile, getFileUrl, deleteCloudinaryImage } = require('../middleware/upload');
 const path = require('path');
 
 // @desc    Upload and analyze face image
@@ -18,22 +18,21 @@ const analyzeFace = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const filePath = req.file.path;
+    const cloudinaryData = req.file.cloudinary;
+    const imageUrl = req.fileInfo.cloudinaryUrl;
     const originalFileName = req.file.originalname;
 
     console.log(`🔍 Starting face analysis for user ${userId}`);
-    console.log(`📁 File: ${originalFileName} (${req.file.size} bytes)`);
+    console.log(`📁 File: ${originalFileName} (${cloudinaryData.fileSize} bytes)`);
+    console.log(`☁️ Cloudinary URL: ${imageUrl}`);
 
-    // Perform face analysis
-    const analysisResult = await faceAnalysisService.analyzeFace(filePath, originalFileName);
+    // Perform face analysis using Cloudinary URL
+    const analysisResult = await faceAnalysisService.analyzeFace(imageUrl, originalFileName, cloudinaryData);
 
-    // Create file URL for serving the image
-    const imageUrl = getFileUrl(req.file.filename);
-
-    // Save analysis to database
+    // Save analysis to database with Cloudinary metadata
     const faceAnalysis = new FaceAnalysis({
       userId,
-      imageUrl,
+      imageUrl, // This is now the Cloudinary URL
       originalFileName: analysisResult.originalFileName,
       fileSize: analysisResult.fileSize,
       imageFormat: analysisResult.imageFormat,
@@ -44,7 +43,12 @@ const analyzeFace = async (req, res) => {
       colors: analysisResult.colors,
       faceDimensions: analysisResult.faceDimensions,
       facialFeatures: analysisResult.facialFeatures,
-      analysisMetadata: analysisResult.analysisMetadata
+      analysisMetadata: {
+        ...analysisResult.analysisMetadata,
+        cloudinaryPublicId: cloudinaryData.publicId,
+        autoDeleteDate: cloudinaryData.autoDeleteDate,
+        storageProvider: 'cloudinary'
+      }
     });
 
     await faceAnalysis.save();
@@ -96,9 +100,9 @@ const analyzeFace = async (req, res) => {
   } catch (error) {
     console.error('Face analysis error:', error);
 
-    // Clean up uploaded file on error
-    if (req.file && req.file.path) {
-      cleanupFile(req.file.path);
+    // Clean up Cloudinary image on error
+    if (req.file && req.file.cloudinary) {
+      await deleteCloudinaryImage(req.file.cloudinary.publicId);
     }
 
     res.status(500).json({
@@ -496,8 +500,117 @@ const addRecommendationFeedback = async (req, res) => {
   }
 };
 
+// @desc    Analyze face from direct Cloudinary upload
+// @route   POST /api/face/analyze-direct
+// @access  Private
+const analyzeFaceFromDirectUpload = async (req, res) => {
+  try {
+    const { publicId, imageUrl, originalFileName, imageData } = req.body;
+    const userId = req.user.id;
+
+    // Validate required fields
+    if (!publicId || !imageUrl || !originalFileName || !imageData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required image data'
+      });
+    }
+
+    console.log(`🔍 Starting face analysis for user ${userId} (Direct Upload)`);
+    console.log(`☁️ Cloudinary URL: ${imageUrl}`);
+    console.log(`📁 File: ${originalFileName} (${imageData.bytes} bytes)`);
+
+    // Prepare cloudinary data for analysis
+    const cloudinaryData = {
+      publicId: publicId,
+      url: imageUrl,
+      fileSize: imageData.bytes,
+      format: imageData.format,
+      width: imageData.width,
+      height: imageData.height,
+      originalName: originalFileName
+    };
+
+    // Perform face analysis using Cloudinary URL
+    const analysisResult = await faceAnalysisService.analyzeFace(imageUrl, originalFileName, cloudinaryData);
+
+    // Calculate deletion date
+    const deletionDate = new Date();
+    deletionDate.setDate(deletionDate.getDate() + (parseInt(process.env.CLOUDINARY_AUTO_DELETE_DAYS) || 5));
+
+    // Save analysis to database with Cloudinary metadata
+    const faceAnalysis = new FaceAnalysis({
+      userId,
+      imageUrl, // This is the Cloudinary URL
+      originalFileName: analysisResult.originalFileName,
+      fileSize: analysisResult.fileSize,
+      imageFormat: analysisResult.imageFormat,
+      imageDimensions: analysisResult.imageDimensions,
+      faceDetected: analysisResult.faceDetected,
+      faceCount: analysisResult.faceCount,
+      faceRegion: analysisResult.faceRegion,
+      colors: analysisResult.colors,
+      faceDimensions: analysisResult.faceDimensions,
+      facialFeatures: analysisResult.facialFeatures,
+      analysisMetadata: {
+        ...analysisResult.analysisMetadata,
+        cloudinaryPublicId: publicId,
+        autoDeleteDate: deletionDate,
+        storageProvider: 'cloudinary',
+        uploadMethod: 'direct',
+        compressed: true
+      }
+    });
+
+    await faceAnalysis.save();
+
+    console.log(`✅ Face analysis completed in ${analysisResult.analysisMetadata.processingTime}ms`);
+
+    // Return analysis results
+    res.status(201).json({
+      success: true,
+      message: 'Face analysis completed successfully',
+      data: {
+        _id: faceAnalysis._id,
+        imageUrl: faceAnalysis.imageUrl,
+        originalFileName: faceAnalysis.originalFileName,
+        fileSize: faceAnalysis.fileSize,
+        imageFormat: faceAnalysis.imageFormat,
+        imageDimensions: faceAnalysis.imageDimensions,
+        faceDetected: faceAnalysis.faceDetected,
+        faceCount: faceAnalysis.faceCount,
+        faceRegion: faceAnalysis.faceRegion,
+        colors: faceAnalysis.colors,
+        faceDimensions: faceAnalysis.faceDimensions,
+        facialFeatures: faceAnalysis.facialFeatures,
+        analysisMetadata: faceAnalysis.analysisMetadata,
+        createdAt: faceAnalysis.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Face analysis error (direct upload):', error);
+
+    // If there's an error, we should delete the Cloudinary image
+    if (req.body.publicId) {
+      try {
+        await deleteCloudinaryImage(req.body.publicId);
+      } catch (deleteError) {
+        console.error('Error cleaning up Cloudinary image:', deleteError);
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error during face analysis',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   analyzeFace,
+  analyzeFaceFromDirectUpload,
   getFaceAnalysisHistory,
   getFaceAnalysis,
   deleteFaceAnalysis,

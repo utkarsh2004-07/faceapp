@@ -45,8 +45,8 @@ class FaceAnalysisService {
     };
   }
 
-  // Main analysis function
-  async analyzeFace(imagePath, originalFileName) {
+  // Main analysis function - now works with both local paths and URLs
+  async analyzeFace(imageSource, originalFileName, cloudinaryData = null) {
     const startTime = Date.now();
     const analysis = {
       originalFileName,
@@ -68,20 +68,35 @@ class FaceAnalysisService {
     };
 
     try {
-      // Get image metadata
-      const metadata = await sharp(imagePath).metadata();
-      analysis.imageFormat = metadata.format;
-      analysis.imageDimensions = {
-        width: metadata.width,
-        height: metadata.height
-      };
+      let image;
 
-      // Get file size
-      const stats = await fs.stat(imagePath);
-      analysis.fileSize = stats.size;
+      // If we have Cloudinary data, use it directly to avoid re-processing
+      if (cloudinaryData) {
+        analysis.imageFormat = cloudinaryData.format;
+        analysis.imageDimensions = {
+          width: cloudinaryData.width,
+          height: cloudinaryData.height
+        };
+        analysis.fileSize = cloudinaryData.fileSize;
 
-      // Load image with Jimp for analysis
-      const image = await Jimp.read(imagePath);
+        // Load image from Cloudinary URL
+        image = await Jimp.read(imageSource);
+      } else {
+        // Fallback to local file processing
+        const metadata = await sharp(imageSource).metadata();
+        analysis.imageFormat = metadata.format;
+        analysis.imageDimensions = {
+          width: metadata.width,
+          height: metadata.height
+        };
+
+        // Get file size
+        const stats = await fs.stat(imageSource);
+        analysis.fileSize = stats.size;
+
+        // Load image with Jimp for analysis
+        image = await Jimp.read(imageSource);
+      }
       
       // Perform face detection (simplified approach)
       const faceRegion = await this.detectFace(image);
