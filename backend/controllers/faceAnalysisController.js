@@ -638,31 +638,52 @@ const analyzeFaceFromUrl = async (req, res) => {
     }
 
     // Perform face analysis using the image URL
-    const analysisResult = await faceAnalysisService.analyzeFace(imageUrl, originalFileName || 'uploaded-image.jpg');
+    const analysisResult = await faceAnalysisService.analyzeFace(imageUrl, originalFileName);
 
     // Calculate deletion date (5-6 days from now)
     const deletionDate = new Date();
     deletionDate.setDate(deletionDate.getDate() + (parseInt(process.env.CLOUDINARY_AUTO_DELETE_DAYS) || 5));
 
+    // Ensure required fields have default values if not provided
+    const safeAnalysisResult = {
+      originalFileName: analysisResult.originalFileName || originalFileName,
+      fileSize: analysisResult.fileSize || 0,
+      imageFormat: analysisResult.imageFormat || 'jpg',
+      imageDimensions: analysisResult.imageDimensions || { width: 0, height: 0 },
+      faceDetected: analysisResult.faceDetected || false,
+      faceCount: analysisResult.faceCount || 0,
+      faceRegion: analysisResult.faceRegion || null,
+      colors: analysisResult.colors || {},
+      faceDimensions: analysisResult.faceDimensions || {},
+      facialFeatures: analysisResult.facialFeatures || {},
+      analysisMetadata: analysisResult.analysisMetadata || {
+        processingTime: 0,
+        confidence: 0,
+        algorithm: 'custom-v1',
+        errors: [],
+        warnings: []
+      }
+    };
+
     // Save analysis to database
     const faceAnalysis = new FaceAnalysis({
       userId,
       imageUrl,
-      originalFileName: analysisResult.originalFileName,
-      fileSize: analysisResult.fileSize,
-      imageFormat: analysisResult.imageFormat,
-      imageDimensions: analysisResult.imageDimensions,
-      faceDetected: analysisResult.faceDetected,
-      faceCount: analysisResult.faceCount,
-      faceRegion: analysisResult.faceRegion,
-      colors: analysisResult.colors,
-      faceDimensions: analysisResult.faceDimensions,
-      facialFeatures: analysisResult.facialFeatures,
+      originalFileName: safeAnalysisResult.originalFileName,
+      fileSize: safeAnalysisResult.fileSize,
+      imageFormat: safeAnalysisResult.imageFormat,
+      imageDimensions: safeAnalysisResult.imageDimensions,
+      faceDetected: safeAnalysisResult.faceDetected,
+      faceCount: safeAnalysisResult.faceCount,
+      faceRegion: safeAnalysisResult.faceRegion,
+      colors: safeAnalysisResult.colors,
+      faceDimensions: safeAnalysisResult.faceDimensions,
+      facialFeatures: safeAnalysisResult.facialFeatures,
       analysisMetadata: {
-        ...analysisResult.analysisMetadata,
+        ...safeAnalysisResult.analysisMetadata,
         cloudinaryPublicId: publicId,
         autoDeleteDate: deletionDate,
-        storageProvider: 'cloudinary',
+        storageProvider: 'url-based',
         uploadMethod: 'url-only',
         compressed: true
       }

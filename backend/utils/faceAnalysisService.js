@@ -82,20 +82,41 @@ class FaceAnalysisService {
         // Load image from Cloudinary URL
         image = await Jimp.read(imageSource);
       } else {
-        // Fallback to local file processing
-        const metadata = await sharp(imageSource).metadata();
-        analysis.imageFormat = metadata.format;
-        analysis.imageDimensions = {
-          width: metadata.width,
-          height: metadata.height
-        };
+        // Handle URL-based analysis (no cloudinary data)
+        try {
+          // Load image from URL
+          image = await Jimp.read(imageSource);
 
-        // Get file size
-        const stats = await fs.stat(imageSource);
-        analysis.fileSize = stats.size;
+          // Extract format from URL or default to jpg
+          const urlParts = imageSource.split('.');
+          const extension = urlParts[urlParts.length - 1].split('?')[0].toLowerCase();
+          analysis.imageFormat = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(extension) ? extension : 'jpg';
 
-        // Load image with Jimp for analysis
-        image = await Jimp.read(imageSource);
+          // Get dimensions from loaded image
+          analysis.imageDimensions = {
+            width: image.getWidth(),
+            height: image.getHeight()
+          };
+
+          // Estimate file size (rough calculation)
+          analysis.fileSize = Math.round(image.getWidth() * image.getHeight() * 3 * 0.7); // RGB * compression estimate
+
+        } catch (urlError) {
+          // Fallback to local file processing if URL fails
+          const metadata = await sharp(imageSource).metadata();
+          analysis.imageFormat = metadata.format;
+          analysis.imageDimensions = {
+            width: metadata.width,
+            height: metadata.height
+          };
+
+          // Get file size
+          const stats = await fs.stat(imageSource);
+          analysis.fileSize = stats.size;
+
+          // Load image with Jimp for analysis
+          image = await Jimp.read(imageSource);
+        }
       }
       
       // Perform face detection (simplified approach)
