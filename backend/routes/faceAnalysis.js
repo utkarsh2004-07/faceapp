@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const {
   analyzeFace,
   analyzeFaceFromDirectUpload,
+  analyzeFaceFromUrl,
   getFaceAnalysisHistory,
   getFaceAnalysis,
   deleteFaceAnalysis,
@@ -54,6 +55,24 @@ router.post('/analyze-direct', [
   }
   next();
 }, advancedRateLimit.createLimiter('faceAnalysis'), analyzeFaceFromDirectUpload);
+
+// @route   POST /api/face/analyze-url
+// @desc    Analyze face from image URL (simplest method)
+// @access  Private
+router.post('/analyze-url', [
+  body('imageUrl').isURL().withMessage('Valid image URL is required'),
+  body('originalFileName').optional().isString().withMessage('Original filename must be a string')
+], (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+  next();
+}, advancedRateLimit.createLimiter('faceAnalysis'), analyzeFaceFromUrl);
 
 // @route   GET /api/face/history
 // @desc    Get user's face analysis history

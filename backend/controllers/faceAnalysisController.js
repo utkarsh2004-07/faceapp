@@ -608,9 +608,101 @@ const analyzeFaceFromDirectUpload = async (req, res) => {
   }
 };
 
+// @desc    Analyze face from image URL (simplest method)
+// @route   POST /api/face/analyze-url
+// @access  Private
+const analyzeFaceFromUrl = async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+    const originalFileName = req.body.originalFileName || 'image.jpg';
+    const userId = req.user.id;
+
+    console.log(`🔍 Analyzing face from URL for user ${userId}`);
+    console.log(`🌐 Image URL: ${imageUrl}`);
+
+    // Extract public ID from Cloudinary URL if possible
+    let publicId = 'unknown';
+    try {
+      // Check if it's a Cloudinary URL
+      if (imageUrl.includes('cloudinary.com')) {
+        const urlParts = imageUrl.split('/');
+        const fileWithExt = urlParts[urlParts.length - 1];
+        publicId = fileWithExt.split('.')[0];
+      } else {
+        // Generate a unique ID for non-Cloudinary URLs
+        publicId = `face-${userId}-${Date.now()}-${Math.round(Math.random() * 1000000)}`;
+      }
+    } catch (error) {
+      console.log('Could not extract public ID from URL');
+      publicId = `face-${userId}-${Date.now()}`;
+    }
+
+    // Perform face analysis using the image URL
+    const analysisResult = await faceAnalysisService.analyzeFace(imageUrl, originalFileName || 'uploaded-image.jpg');
+
+    // Calculate deletion date (5-6 days from now)
+    const deletionDate = new Date();
+    deletionDate.setDate(deletionDate.getDate() + (parseInt(process.env.CLOUDINARY_AUTO_DELETE_DAYS) || 5));
+
+    // Save analysis to database
+    const faceAnalysis = new FaceAnalysis({
+      userId,
+      imageUrl,
+      originalFileName: analysisResult.originalFileName,
+      fileSize: analysisResult.fileSize,
+      imageFormat: analysisResult.imageFormat,
+      imageDimensions: analysisResult.imageDimensions,
+      faceDetected: analysisResult.faceDetected,
+      faceCount: analysisResult.faceCount,
+      faceRegion: analysisResult.faceRegion,
+      colors: analysisResult.colors,
+      faceDimensions: analysisResult.faceDimensions,
+      facialFeatures: analysisResult.facialFeatures,
+      analysisMetadata: {
+        ...analysisResult.analysisMetadata,
+        cloudinaryPublicId: publicId,
+        autoDeleteDate: deletionDate,
+        storageProvider: 'cloudinary',
+        uploadMethod: 'url-only',
+        compressed: true
+      }
+    });
+
+    await faceAnalysis.save();
+
+    console.log(`✅ Face analysis from URL completed in ${analysisResult.analysisMetadata.processingTime}ms`);
+
+    // Return analysis results
+    res.status(201).json({
+      success: true,
+      message: 'Face analysis completed successfully',
+      data: {
+        _id: faceAnalysis._id,
+        imageUrl: faceAnalysis.imageUrl,
+        originalFileName: faceAnalysis.originalFileName,
+        faceDetected: faceAnalysis.faceDetected,
+        colors: faceAnalysis.colors,
+        faceDimensions: faceAnalysis.faceDimensions,
+        facialFeatures: faceAnalysis.facialFeatures,
+        analysisMetadata: faceAnalysis.analysisMetadata,
+        createdAt: faceAnalysis.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in analyzeFaceFromUrl:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Face analysis failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   analyzeFace,
   analyzeFaceFromDirectUpload,
+  analyzeFaceFromUrl,
   getFaceAnalysisHistory,
   getFaceAnalysis,
   deleteFaceAnalysis,
