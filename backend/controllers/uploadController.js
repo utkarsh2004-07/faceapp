@@ -17,41 +17,19 @@ const generateUploadSignature = async (req, res) => {
     const deletionDate = new Date();
     deletionDate.setDate(deletionDate.getDate() + (parseInt(process.env.CLOUDINARY_AUTO_DELETE_DAYS) || 5));
     
-    // Upload parameters for Cloudinary
-    const uploadParams = {
-      public_id: publicId,
+    // Upload parameters for Cloudinary signature (must match frontend exactly)
+    const signatureParams = {
+      allowed_formats: 'jpg,jpeg,png,gif,bmp,webp',
+      context: `user_id=${userId}|original_upload=true|upload_date=${new Date().toISOString()}|auto_delete_date=${deletionDate.toISOString()}|source=direct-upload|compressed=true`,
       folder: process.env.CLOUDINARY_FOLDER || 'faceapp-uploads',
-      resource_type: 'image',
+      public_id: publicId,
+      tags: `face-analysis,auto-delete,user-${userId}`,
       timestamp: timestamp,
-      // Image transformations for compression and optimization
-      transformation: [
-        {
-          quality: 'auto:good',
-          fetch_format: 'auto',
-          width: 1200,
-          height: 1200,
-          crop: 'limit' // Don't upscale, only downscale if larger
-        }
-      ],
-      // Tags for management
-      tags: ['face-analysis', 'auto-delete', `user-${userId}`],
-      // Context for metadata
-      context: {
-        user_id: userId,
-        original_upload: 'true',
-        upload_date: new Date().toISOString(),
-        auto_delete_date: deletionDate.toISOString(),
-        source: 'direct-upload',
-        compressed: 'true'
-      },
-      // File size limit (10MB)
-      bytes_step: 10485760,
-      // Allowed formats
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
+      transformation: 'q_auto:good,f_auto,w_1200,h_1200,c_limit'
     };
 
     // Generate signature for secure upload
-    const signature = cloudinary.utils.api_sign_request(uploadParams, process.env.CLOUDINARY_API_SECRET);
+    const signature = cloudinary.utils.api_sign_request(signatureParams, process.env.CLOUDINARY_API_SECRET);
 
     // Return upload configuration to frontend
     res.json({
@@ -63,23 +41,23 @@ const generateUploadSignature = async (req, res) => {
         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
         apiKey: process.env.CLOUDINARY_API_KEY,
         uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
+        // Exact parameters used for signature generation
         uploadParams: {
-          ...uploadParams,
+          ...signatureParams,
           signature,
           api_key: process.env.CLOUDINARY_API_KEY
         },
-        // Frontend will need these for the upload
+        // Frontend will need these for the upload (exact format)
         formData: {
           public_id: publicId,
-          folder: uploadParams.folder,
+          folder: signatureParams.folder,
           timestamp: timestamp,
           signature: signature,
           api_key: process.env.CLOUDINARY_API_KEY,
-          transformation: JSON.stringify(uploadParams.transformation),
-          tags: uploadParams.tags.join(','),
-          context: Object.entries(uploadParams.context).map(([key, value]) => `${key}=${value}`).join('|'),
-          resource_type: 'image',
-          allowed_formats: uploadParams.allowed_formats.join(',')
+          transformation: signatureParams.transformation,
+          tags: signatureParams.tags,
+          context: signatureParams.context,
+          allowed_formats: signatureParams.allowed_formats
         },
         autoDeleteDate: deletionDate
       }
@@ -212,8 +190,62 @@ const getUploadConfig = async (req, res) => {
   }
 };
 
+// @desc    Generate simple signature for mobile app
+// @route   POST /api/upload/mobile-signature
+// @access  Private
+const generateMobileSignature = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Generate unique public_id for the upload
+    const timestamp = Math.round(Date.now() / 1000);
+    const randomSuffix = Math.round(Math.random() * 1E9);
+    const publicId = `face-${userId}-${timestamp}-${randomSuffix}`;
+
+    // Calculate deletion date (5-6 days from now)
+    const deletionDate = new Date();
+    deletionDate.setDate(deletionDate.getDate() + (parseInt(process.env.CLOUDINARY_AUTO_DELETE_DAYS) || 5));
+
+    // Simple parameters for mobile signature (exact format expected by frontend)
+    const params = {
+      allowed_formats: 'jpg,jpeg,png,gif,bmp,webp',
+      context: `user_id=${userId}|original_upload=true|upload_date=${new Date().toISOString()}|auto_delete_date=${deletionDate.toISOString()}|source=direct-upload|compressed=true`,
+      folder: process.env.CLOUDINARY_FOLDER || 'faceapp-uploads',
+      public_id: publicId,
+      tags: `face-analysis,auto-delete,user-${userId}`,
+      timestamp: timestamp,
+      transformation: 'q_auto:good,f_auto,w_1200,h_1200,c_limit'
+    };
+
+    // Generate signature
+    const signature = cloudinary.utils.api_sign_request(params, process.env.CLOUDINARY_API_SECRET);
+
+    // Return simple response for mobile
+    res.json({
+      success: true,
+      signature,
+      timestamp,
+      public_id: publicId,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      upload_url: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
+      // All parameters needed for upload
+      ...params
+    });
+
+  } catch (error) {
+    console.error('Error generating mobile signature:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate upload signature',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   generateUploadSignature,
   verifyUpload,
-  getUploadConfig
+  getUploadConfig,
+  generateMobileSignature
 };

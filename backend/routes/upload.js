@@ -5,7 +5,8 @@ const advancedRateLimit = require('../middleware/advancedRateLimit');
 const {
   generateUploadSignature,
   verifyUpload,
-  getUploadConfig
+  getUploadConfig,
+  generateMobileSignature
 } = require('../controllers/uploadController');
 
 const router = express.Router();
@@ -24,6 +25,14 @@ router.get('/config', getUploadConfig);
 router.post('/signature',
   advancedRateLimit.createLimiter('uploadSignature'),
   generateUploadSignature
+);
+
+// @route   POST /api/upload/mobile-signature
+// @desc    Generate simple signature for mobile app
+// @access  Private
+router.post('/mobile-signature',
+  advancedRateLimit.createLimiter('uploadSignature'),
+  generateMobileSignature
 );
 
 // @route   POST /api/upload/verify
