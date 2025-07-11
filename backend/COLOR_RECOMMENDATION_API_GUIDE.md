@@ -128,7 +128,77 @@ Content-Type: application/json
 }
 ```
 
-### 4. Add User Feedback
+### 4. Get Most Recent Recommendation
+
+**Endpoint:** `GET /api/face/recommendations/latest`
+
+**Description:** Get user's most recent color recommendation. This endpoint always returns the newest recommendation from the user's history, making it perfect for displaying the current/latest color analysis results.
+
+**Headers:** Same as above
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "64f8a1b2c3d4e5f6a7b8c9d0",
+    "faceAnalysisId": {
+      "_id": "64f8a1b2c3d4e5f6a7b8c9d1",
+      "colors": {
+        "dominantColors": ["#8B4513", "#D2691E"],
+        "skinTone": "#F5DEB3",
+        "eyeColor": "#8B4513",
+        "hairColor": "#654321"
+      },
+      "facialFeatures": {
+        "faceShape": "oval",
+        "eyeShape": "almond"
+      },
+      "createdAt": "2024-01-01T11:00:00.000Z"
+    },
+    "recommendations": [
+      {
+        "outfitName": "Professional Business Look",
+        "shirt": {
+          "color": "Navy Blue",
+          "hex": "#000080",
+          "reason": "Complements your warm skin tone"
+        },
+        "pants": {
+          "color": "Charcoal Gray",
+          "hex": "#36454F",
+          "reason": "Classic neutral that works with navy"
+        },
+        "shoes": {
+          "color": "Brown Leather",
+          "hex": "#8B4513",
+          "reason": "Matches your eye color beautifully"
+        },
+        "overallReason": "This combination enhances your natural coloring"
+      }
+    ],
+    "colorPalette": {
+      "bestColors": ["#000080", "#8B4513", "#228B22"],
+      "avoidColors": ["#FF69B4", "#00FFFF"],
+      "seasonalType": "Autumn"
+    },
+    "generalAdvice": "Your warm undertones work best with earth tones and deep colors.",
+    "userRating": 5,
+    "confidence": 0.9,
+    "createdAt": "2024-01-01T12:00:00.000Z"
+  }
+}
+```
+
+**Response (No Recommendations Found):**
+```json
+{
+  "success": false,
+  "message": "No color recommendations found for this user"
+}
+```
+
+### 5. Add User Feedback
 
 **Endpoint:** `POST /api/face/recommendations/:id/feedback`
 

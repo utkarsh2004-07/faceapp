@@ -117,15 +117,40 @@ class ColorRecommendationService {
   async getUserRecommendationHistory(userId, limit = 10) {
     try {
       const recommendations = await ColorRecommendation.getUserHistory(userId, limit);
-      
+
       return {
         success: true,
         data: recommendations,
         count: recommendations.length
       };
-      
+
     } catch (error) {
       console.error('❌ Error getting user recommendation history:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user's most recent color recommendation
+   */
+  async getMostRecentRecommendation(userId) {
+    try {
+      const recommendation = await ColorRecommendation.getMostRecentRecommendation(userId);
+
+      if (!recommendation) {
+        return {
+          success: false,
+          message: 'No color recommendations found for this user'
+        };
+      }
+
+      return {
+        success: true,
+        data: recommendation
+      };
+
+    } catch (error) {
+      console.error('❌ Error getting most recent recommendation:', error.message);
       throw error;
     }
   }

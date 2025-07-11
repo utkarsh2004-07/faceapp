@@ -266,7 +266,35 @@ Authorization: Bearer <token>
 }
 ```
 
-### **4. Add User Feedback**
+### **4. Get Most Recent Recommendation**
+```http
+GET /api/face/recommendations/latest
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "64f8a1b2c3d4e5f6a7b8c9d0",
+    "faceAnalysisId": {
+      "_id": "64f8a1b2c3d4e5f6a7b8c9d1",
+      "colors": { /* face analysis colors */ },
+      "facialFeatures": { /* face features */ },
+      "createdAt": "2024-01-01T11:00:00.000Z"
+    },
+    "recommendations": [ /* outfit recommendations */ ],
+    "colorPalette": { /* color palette */ },
+    "generalAdvice": "Your warm undertones work best with earth tones.",
+    "userRating": 5,
+    "confidence": 0.9,
+    "createdAt": "2024-01-01T12:00:00.000Z"
+  }
+}
+```
+
+### **5. Add User Feedback**
 ```http
 POST /api/face/recommendations/:id/feedback
 Content-Type: application/json

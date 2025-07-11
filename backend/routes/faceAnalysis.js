@@ -12,6 +12,7 @@ const {
   getColorRecommendations,
   regenerateColorRecommendations,
   getColorRecommendationHistory,
+  getMostRecentColorRecommendation,
   addRecommendationFeedback
 } = require('../controllers/faceAnalysisController');
 const { protect } = require('../middleware/auth');
@@ -130,6 +131,11 @@ router.post('/analysis/:id/recommendations/regenerate',
 // @access  Private
 router.get('/recommendations/history', getColorRecommendationHistory);
 
+// @route   GET /api/face/recommendations/latest
+// @desc    Get user's most recent color recommendation
+// @access  Private
+router.get('/recommendations/latest', getMostRecentColorRecommendation);
+
 // @route   POST /api/face/recommendations/:id/feedback
 // @desc    Add user feedback to recommendations
 // @access  Private
@@ -162,6 +168,7 @@ router.get('/test', (req, res) => {
       getRecommendations: 'POST /api/face/analysis/:id/recommendations - Get AI color recommendations',
       regenerateRecommendations: 'POST /api/face/analysis/:id/recommendations/regenerate - Regenerate recommendations',
       recommendationHistory: 'GET /api/face/recommendations/history - Get recommendation history',
+      latestRecommendation: 'GET /api/face/recommendations/latest - Get most recent recommendation',
       addFeedback: 'POST /api/face/recommendations/:id/feedback - Add user feedback'
     },
     uploadRequirements: {

@@ -460,6 +460,36 @@ const getColorRecommendationHistory = async (req, res) => {
   }
 };
 
+// @desc    Get user's most recent color recommendation
+// @route   GET /api/face/recommendations/latest
+// @access  Private
+const getMostRecentColorRecommendation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await colorRecommendationService.getMostRecentRecommendation(userId);
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result.data
+    });
+
+  } catch (error) {
+    console.error('Get most recent recommendation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving most recent color recommendation'
+    });
+  }
+};
+
 // @desc    Add user feedback to recommendations
 // @route   POST /api/face/recommendations/:id/feedback
 // @access  Private
@@ -732,5 +762,6 @@ module.exports = {
   getColorRecommendations,
   regenerateColorRecommendations,
   getColorRecommendationHistory,
+  getMostRecentColorRecommendation,
   addRecommendationFeedback
 };

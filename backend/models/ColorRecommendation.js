@@ -167,6 +167,13 @@ colorRecommendationSchema.statics.getUserHistory = function(userId, limit = 10) 
     .limit(limit);
 };
 
+// Static method to get user's most recent recommendation
+colorRecommendationSchema.statics.getMostRecentRecommendation = function(userId) {
+  return this.findOne({ userId, isActive: true })
+    .populate('faceAnalysisId', 'colors facialFeatures createdAt')
+    .sort({ createdAt: -1 });
+};
+
 // Static method to get recommendations by face analysis
 colorRecommendationSchema.statics.getByFaceAnalysis = function(faceAnalysisId) {
   return this.findOne({ faceAnalysisId, isActive: true })
