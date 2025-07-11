@@ -201,7 +201,9 @@ const getMe = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      user: userData
+      data: {
+        user: userData
+      }
     });
   } catch (error) {
     console.error('Get me error:', error);

@@ -133,6 +133,50 @@ router.post('/verify-email-mobile',
 router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 
+// Get fresh profile (bypasses cache)
+router.get('/me/fresh', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get fresh data from database (bypass cache)
+    const user = await require('../models/User').findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      gender: user.gender,
+      isEmailVerified: user.isEmailVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt
+    };
+
+    // Update cache with fresh data
+    const cacheService = require('../services/cacheService');
+    await cacheService.setUserCache(userId, userData, 600);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: userData
+      }
+    });
+  } catch (error) {
+    console.error('Get fresh profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 // Update profile route
 router.put('/update-profile', protect, [
   body('name')
@@ -148,7 +192,8 @@ router.put('/update-profile', protect, [
 ], async (req, res) => {
   try {
     const { name, email } = req.body;
-    const user = await require('../models/User').findById(req.user.id);
+    const userId = req.user.id;
+    const user = await require('../models/User').findById(userId);
 
     if (name) user.name = name;
     if (email && email !== user.email) {
@@ -166,16 +211,29 @@ router.put('/update-profile', protect, [
 
     await user.save();
 
+    // IMPORTANT: Clear user cache after update
+    const cacheService = require('../services/cacheService');
+    await cacheService.deleteUserCache(userId);
+
+    // Prepare updated user data
+    const updatedUserData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      gender: user.gender,
+      isEmailVerified: user.isEmailVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt
+    };
+
+    // Set fresh cache with updated data
+    await cacheService.setUserCache(userId, updatedUserData, 600);
+
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isEmailVerified: user.isEmailVerified,
-        lastLogin: user.lastLogin,
-        createdAt: user.createdAt
+      data: {
+        user: updatedUserData
       }
     });
   } catch (error) {
