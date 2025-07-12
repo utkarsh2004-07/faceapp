@@ -26,8 +26,8 @@ class AdvancedRateLimit {
       
       // Registration
       register: {
-        windowMs: 60 * 60 * 1000, // 1 hour
-        // windowMs: 60 * 1000,
+        // windowMs: 60 * 60 * 1000, // 1 hour
+        windowMs: 60 * 1000,
         max: 5, // requests per window
         message: 'Too many registration attempts'
       },
