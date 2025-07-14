@@ -19,7 +19,8 @@ class AdvancedRateLimit {
       
       // Login specific (stricter)
       login: {
-        windowMs: 15 * 60 * 1000, // 15 minutes
+        // windowMs: 15 * 60 * 1000, // 15 minutes
+        windowMs: 60 * 1000,
         max: 10, // requests per window
         message: 'Too many login attempts'
       },
