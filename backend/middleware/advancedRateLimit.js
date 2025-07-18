@@ -3,11 +3,11 @@ const cacheService = require('../services/cacheService');
 class AdvancedRateLimit {
   constructor() {
     this.limits = {
-      // Global limits
+      // Global limits (more generous for hosting environments)
       global: {
         windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 1000, // requests per window
-        message: 'Too many requests from this IP'
+        max: 2000, // requests per window (increased for multiple devices)
+        message: 'Too many requests from this IP, please try again later'
       },
       
       // Authentication endpoints
@@ -66,25 +66,31 @@ class AdvancedRateLimit {
   // Create rate limiter middleware
   createLimiter(type = 'global') {
     const config = this.limits[type] || this.limits.global;
-    
+
     return async (req, res, next) => {
       try {
+        // Check if this is an uptime monitoring request
+        if (this.isUptimeMonitoringRequest(req)) {
+          // Allow uptime monitoring requests without rate limiting
+          return next();
+        }
+
         const identifier = this.getIdentifier(req, type);
         const key = `${type}_${identifier}`;
-        
+
         // Get current count
         const current = await cacheService.incrementRateLimit(
-          key, 
+          key,
           Math.ceil(config.windowMs / 1000)
         );
-        
+
         // Set headers
         res.set({
           'X-RateLimit-Limit': config.max,
           'X-RateLimit-Remaining': Math.max(0, config.max - current),
           'X-RateLimit-Reset': new Date(Date.now() + config.windowMs).toISOString()
         });
-        
+
         // Check if limit exceeded
         if (current > config.max) {
           return res.status(429).json({
@@ -92,10 +98,11 @@ class AdvancedRateLimit {
             message: config.message,
             retryAfter: Math.ceil(config.windowMs / 1000),
             limit: config.max,
-            current: current
+            current: current,
+            ip: this.getClientIP(req) // Add IP for debugging
           });
         }
-        
+
         next();
       } catch (error) {
         console.error('Rate limit error:', error);
@@ -103,6 +110,32 @@ class AdvancedRateLimit {
         next();
       }
     };
+  }
+
+  // Check if request is from uptime monitoring service
+  isUptimeMonitoringRequest(req) {
+    const userAgent = req.headers['user-agent']?.toLowerCase() || '';
+    const path = req.path;
+
+    // Check for common uptime monitoring user agents
+    const uptimeMonitoringAgents = [
+      'uptimerobot',
+      'pingdom',
+      'statuscake',
+      'site24x7',
+      'monitor',
+      'uptime',
+      'healthcheck',
+      'curl', // Many monitoring services use curl
+      'wget'
+    ];
+
+    // Check for health check paths
+    const healthCheckPaths = ['/api/health', '/ping', '/health', '/status'];
+
+    // Allow if it's a health check path or uptime monitoring user agent
+    return healthCheckPaths.includes(path) ||
+           uptimeMonitoringAgents.some(agent => userAgent.includes(agent));
   }
 
   // Get identifier for rate limiting
@@ -121,57 +154,84 @@ class AdvancedRateLimit {
     return this.getClientIP(req);
   }
 
-  // Get client IP address
+  // Get client IP address (improved for proxy environments like Render)
   getClientIP(req) {
-    return req.ip || 
-           req.connection.remoteAddress || 
-           req.socket.remoteAddress ||
-           (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
+    // Check for forwarded IP headers (common in hosting environments)
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      // Take the first IP if there are multiple
+      return forwarded.split(',')[0].trim();
+    }
+
+    // Check for real IP header
+    const realIP = req.headers['x-real-ip'];
+    if (realIP) {
+      return realIP;
+    }
+
+    // Check for Cloudflare connecting IP
+    const cfIP = req.headers['cf-connecting-ip'];
+    if (cfIP) {
+      return cfIP;
+    }
+
+    // Fallback to Express IP detection
+    return req.ip ||
+           req.connection?.remoteAddress ||
+           req.socket?.remoteAddress ||
+           req.connection?.socket?.remoteAddress ||
            '0.0.0.0';
   }
 
   // Sliding window rate limiter
   createSlidingWindowLimiter(type = 'global') {
     const config = this.limits[type] || this.limits.global;
-    
+
     return async (req, res, next) => {
       try {
+        // Check if this is an uptime monitoring request
+        if (this.isUptimeMonitoringRequest(req)) {
+          // Allow uptime monitoring requests without rate limiting
+          return next();
+        }
+
         const identifier = this.getIdentifier(req, type);
         const now = Date.now();
         const windowStart = now - config.windowMs;
-        
+
         // Use Redis for sliding window if available
         if (cacheService.isRedisConnected && cacheService.redisCache) {
           const key = `sliding_${type}_${identifier}`;
-          
+
           // Remove old entries and add current request
           const pipeline = cacheService.redisCache.pipeline();
           pipeline.zremrangebyscore(key, 0, windowStart);
           pipeline.zadd(key, now, `${now}_${Math.random()}`);
           pipeline.zcard(key);
           pipeline.expire(key, Math.ceil(config.windowMs / 1000));
-          
+
           const results = await pipeline.exec();
           const count = results[2][1];
-          
+
           res.set({
             'X-RateLimit-Limit': config.max,
             'X-RateLimit-Remaining': Math.max(0, config.max - count),
             'X-RateLimit-Reset': new Date(now + config.windowMs).toISOString()
           });
-          
+
           if (count > config.max) {
             return res.status(429).json({
               success: false,
               message: config.message,
-              retryAfter: Math.ceil(config.windowMs / 1000)
+              retryAfter: Math.ceil(config.windowMs / 1000),
+              ip: this.getClientIP(req) // Add IP for debugging
             });
           }
         } else {
           // Fallback to simple rate limiting
           return this.createLimiter(type)(req, res, next);
         }
-        
+
         next();
       } catch (error) {
         console.error('Sliding window rate limit error:', error);
@@ -184,11 +244,17 @@ class AdvancedRateLimit {
   createAdaptiveLimiter(type = 'global') {
     return async (req, res, next) => {
       try {
+        // Check if this is an uptime monitoring request
+        if (this.isUptimeMonitoringRequest(req)) {
+          // Allow uptime monitoring requests without rate limiting
+          return next();
+        }
+
         const config = { ...this.limits[type] || this.limits.global };
-        
+
         // Adjust limits based on server metrics
         const serverLoad = await this.getServerLoad();
-        
+
         if (serverLoad > 0.8) {
           // High load - reduce limits by 50%
           config.max = Math.floor(config.max * 0.5);
@@ -196,32 +262,33 @@ class AdvancedRateLimit {
           // Medium load - reduce limits by 25%
           config.max = Math.floor(config.max * 0.75);
         }
-        
+
         // Apply rate limiting with adjusted config
         const identifier = this.getIdentifier(req, type);
         const key = `adaptive_${type}_${identifier}`;
-        
+
         const current = await cacheService.incrementRateLimit(
-          key, 
+          key,
           Math.ceil(config.windowMs / 1000)
         );
-        
+
         res.set({
           'X-RateLimit-Limit': config.max,
           'X-RateLimit-Remaining': Math.max(0, config.max - current),
           'X-RateLimit-Reset': new Date(Date.now() + config.windowMs).toISOString(),
           'X-Server-Load': serverLoad.toFixed(2)
         });
-        
+
         if (current > config.max) {
           return res.status(429).json({
             success: false,
             message: `${config.message} (server load: ${(serverLoad * 100).toFixed(1)}%)`,
             retryAfter: Math.ceil(config.windowMs / 1000),
-            serverLoad: serverLoad
+            serverLoad: serverLoad,
+            ip: this.getClientIP(req) // Add IP for debugging
           });
         }
-        
+
         next();
       } catch (error) {
         console.error('Adaptive rate limit error:', error);

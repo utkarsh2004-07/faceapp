@@ -41,8 +41,39 @@ app.use(compression({
 // Security middleware
 app.use(helmet());
 
-// Global rate limiting
-app.use(advancedRateLimit.createAdaptiveLimiter('global'));
+// Trust proxy for proper IP detection (important for Render)
+app.set('trust proxy', 1);
+
+// Health check endpoints (BEFORE rate limiting)
+app.get('/api/health', async (req, res) => {
+  const cacheHealth = await cacheService.healthCheck();
+  const performanceData = performanceMonitor.getPerformanceSummary();
+
+  res.status(200).json({
+    success: true,
+    message: 'Server is running successfully',
+    timestamp: new Date().toISOString(),
+    performance: performanceData,
+    cache: cacheHealth,
+    uptime: process.uptime(),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
+    }
+  });
+});
+
+// Simple ping endpoint for uptime monitoring
+app.get('/ping', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'pong',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Global rate limiting (AFTER health check endpoints)
+app.use(advancedRateLimit.createLimiter('global'));
 
 // CORS configuration for mobile app
 const corsOptions = {
@@ -85,25 +116,6 @@ const uploadRoutes = require('./routes/upload');
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/face', faceAnalysisRoutes);
-
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
-  const cacheHealth = await cacheService.healthCheck();
-  const performanceData = performanceMonitor.getPerformanceSummary();
-
-  res.status(200).json({
-    success: true,
-    message: 'Server is running successfully',
-    timestamp: new Date().toISOString(),
-    performance: performanceData,
-    cache: cacheHealth,
-    uptime: process.uptime(),
-    memory: {
-      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
-      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
-    }
-  });
-});
 
 // Performance metrics endpoint
 app.get('/api/metrics', (req, res) => {
